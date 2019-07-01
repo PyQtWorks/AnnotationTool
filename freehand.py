@@ -75,7 +75,7 @@ class FreeHandView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.image_size = width
-        # self.mask = torch.zeros(1024, self.image.shape[1])
+        # self.mask = np.zeros(1024, self.image.shape[1])
         # self.set_image(np.ones([width, height,3],dtype=np.uint8) * 255)
 
         # self.baseImageChangedCallbacks = []
@@ -93,7 +93,7 @@ class FreeHandView(QGraphicsView):
 
 
     def reset(self):
-        self.mask = torch.zeros(self.image.shape[0], self.image.shape[1])
+        self.mask = np.zeros(self.image.shape[0], self.image.shape[1])
         self.refresh()
         self.isLocalEditted = False
         self.reset_signal.emit()
@@ -114,27 +114,17 @@ class FreeHandView(QGraphicsView):
     def mouseMoveEvent(self, event):
         if self.isMousePressed is True:
             x, y = event.x(), event.y()
-            if self.isLocalEditted:
-                rr, cc = Draw.circle(
-                    y * self.image.shape[0] // self.image_size, x * self.image.shape[1] // self.image_size, self.brushSize, self.mask.shape)
-                if self.mask is None:
-                    return
-                    # self.mask = torch.zeros(*self.image.shape[:2])
-                # rr[rr>self.image.shape[0]-1] = self.image.shape[0]-1
-                # cc[cc>self.image.shape[0]-1] = self.image.shape[0]-1
-                if self.mode == 'paint':
-                    self.mask[rr,cc] = 1
-                    self.image[rr,cc,:] = self.draw_color
-                elif self.mode == 'eraser':
-                    self.mask[rr,cc] = -1    
-                    self.image[rr,cc,:] = np.array([255, 255, 255])
-                elif self.mode == 'keep':
-                    self.mask[rr,cc] = 2
-                    self.image[rr,cc,0] = 255
-                self.refresh()
-            elif self.mode == 'pick':
-                self.global_image_update_signal.emit(y, x)
-
+            
+            rr, cc = Draw.circle(
+                y * self.image.shape[0] // self.image_size, x * self.image.shape[1] // self.image_size, self.brushSize, self.mask.shape)
+            if self.mask is None:
+                print('Moving but mask is None')
+                return
+            if self.mode == 'paint':
+                self.mask[rr,cc] = 0.5
+            elif self.mode == 'eraser':
+                self.mask[rr,cc] = 0    
+        self.refresh()
 
 
     def mousePressEvent(self, event):
@@ -147,26 +137,13 @@ class FreeHandView(QGraphicsView):
             x, y = event.x(), event.y()
             if self.mode in self.paint_related_operations:
                 if self.mask is None: 
-                    self.mask = torch.zeros(*self.image.shape[:2])
+                    self.mask = np.zeros(*self.image.shape[:2])
                 rr, cc = Draw.circle(
                     y * self.image.shape[0] // self.image_size, x * self.image.shape[1] // self.image_size, self.brushSize, self.mask.shape)
-                # rr[rr>self.image.shape[0]-1] = self.image.shape[0]-1
-                # cc[cc>self.image.shape[0]-1] = self.image.shape[0]-1
                 if self.mode == 'paint':
-                    self.mask[rr,cc] = 1
-                    self.image[rr,cc,:] = self.draw_color
+                    self.mask[rr,cc] = 0.5
                 elif self.mode == 'eraser':
-                    self.mask[rr,cc] = -1
-                    self.image[rr,cc,:] = np.array([255, 255, 255])
-                elif self.mode == 'keep':
-                    self.mask[rr,cc] = 2
-                    self.image[rr,cc,0] = 255                        
-                self.isLocalEditted = True
-            elif self.mode == 'pick':
-                self.reset()
-                self.isLocalEditted = False
-                self.global_image_update_signal.emit(y, x)
-
+                    self.mask[rr,cc] = 0
 
         elif event.button() == 4:
             options = QFileDialog.Options()
@@ -176,13 +153,6 @@ class FreeHandView(QGraphicsView):
             if not fileName.endswith('.jpg'):
                 fileName += '.jpg'
             self.save_image(fileName)
-
-
-    def set_paint_color(self):
-        color = QColorDialog.getColor()
-        rgb = color.getRgb()
-        self.draw_color = np.array(rgb[:-1])
-        log.info(f'Set New color {self.draw_color}')
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -210,15 +180,14 @@ class FreeHandView(QGraphicsView):
         self.repaint()
 
     def set_image(self, img):
-        # if self.mask is not None:
-        #     img = self.image * (1 - self.mask).unsqueeze(-1) + \
-        #         img * self.mask.unsqueeze(-1)
-        #     img = img.numpy()
-
         self.image = img.copy()
+        red = np.zeros_like(img)
+        red[..., 0] = 255
         if self.mask is None:
-            self.mask = torch.zeros(self.image.shape[0], self.image.shape[1])
-        oImage = toQImage(self.image)
+            self.mask = np.zeros((self.image.shape[0], self.image.shape[1]))[..., None]
+    
+        _img = self.image * (1-self.mask) + red * self.mask
+        oImage = toQImage(_img)
         sImage = oImage.scaled(QSize(self.image_size, self.image_size))
         self.pixmap_image = QPixmap.fromImage(sImage)
         # self.setPixmap(self.pixmap_image)
