@@ -22,16 +22,18 @@ from freehandTool.pointerEvent import PointerEvent
 from freehandTool.segmentString.segmentString import SegmentString
 from Utils import toQImage
 from PyQt5.QtWidgets import QColorDialog
+
 width, height = 500, 500
 
 
 class FreeHandSlot(QWidget):
+    gw = None
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout()
         self.setLayout(layout)
         self.scene = DiagramScene(0, 0, width, height, self)
-        self.view = FreeHandView(self.scene)
+        self.view = FreeHandView(self, self.scene)
         self.view.setFixedSize(width, height)
         self.view.setSceneRect(-width, -height, width, height)
         # self.view.fitInView(-width, -height, width, height, Qt.KeepAspectRatio)
@@ -39,9 +41,23 @@ class FreeHandSlot(QWidget):
         self.picker_radius = 20
         self.picker = self.scene.addEllipse(QRectF(0, 0, self.picker_radius, self.picker_radius), QPen(Qt.red), QBrush(Qt.green))
         self.picker.setEnabled(False)
-        self.view.global_image_update_signal.connect(self.hide_picker)
-        self.view.hide_picker_signal.connect(self.hide_picker)
+        self.update_cursor()
 
+    def update_cursor(self):
+        size = self.view.brushSize
+        rr, cc = Draw.circle(
+            size, size, size, [size*2, size*2])
+        cursor_img = np.ones([size*2, size*2, 3],dtype=np.uint8) * 200
+        if self.view.mode == 'paint':
+            cursor_img[..., 1:] = 0
+        cursor_mask = np.ones([size*2, size*2], np.uint8) * 255
+        cursor_mask[rr, cc] = 0
+        qi = toQImage(cursor_img)
+        Qp = QPixmap.fromImage(qi)
+        qimage_mask = QImage(cursor_mask, size*2, size*2, QImage.Format_Grayscale8)
+        qb = QBitmap(qimage_mask)
+        Qp.setMask(qb)
+        self.view.setCursor(QCursor(Qp))
 
     def show_picker(self, y, x):
         self.picker.setEnabled(True)
@@ -63,23 +79,19 @@ class FreeHandView(QGraphicsView):
     '''
     Slot that contains the actual image
     '''
-    global_image_update_signal = pyqtSignal(int, int)
-    hide_picker_signal = pyqtSignal()
-    mode_signal = pyqtSignal(str, str)
-    reset_signal = pyqtSignal()
+    # hide_picker_signal = pyqtSignal()
+    # mode_signal = pyyqtSignal(str, str)
+    # reset_signal = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, slot, parent=None):
         super().__init__(parent)
         self.mode = 'paint'
-        self.paint_related_operations = ['paint', 'eraser', 'keep']
+        self.slot = slot
+        self.paint_related_operations = ['paint', 'eraser']
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.image_size = width
-        # self.mask = np.zeros(1024, self.image.shape[1])
-        # self.set_image(np.ones([width, height,3],dtype=np.uint8) * 255)
 
-        # self.baseImageChangedCallbacks = []
-        # self.base_image = None
         self.mask = None
         self.image = None
         assert self.dragMode() == QGraphicsView.NoDrag
@@ -89,8 +101,19 @@ class FreeHandView(QGraphicsView):
         self.isMousePressed = False
         self.draw_color = np.array([255,255,255], dtype=np.uint8)
         self.isLocalEditted = False
-        self.brushSize = 20
+        self.paint_bs = 20
+        self.erase_bs = 20
 
+    @property
+    def brushSize(self):
+        if self.mode == 'paint':
+            return self.paint_bs
+        return self.erase_bs
+        
+    def change_brush_size(self, name, value):
+        bs = getattr(self, f'{name}_bs')
+        setattr(self, f'{name}_bs', bs + value)
+        self.slot.update_cursor()
 
     def reset(self):
         self.mask = np.zeros(self.image.shape[0], self.image.shape[1])
@@ -99,12 +122,12 @@ class FreeHandView(QGraphicsView):
         self.reset_signal.emit()
         log.debug('Reset FHS')
 
+
     def set_mode(self, mode):
         log.info(f'Selecting Mode : {mode}')
-        self.mode_signal.emit(self.mode, mode)
-        if mode != 'pick':
-            self.hide_picker_signal.emit()
+        # self.mode_signal.emit(self.mode, mode)
         self.mode = mode
+        self.slot.update_cursor()
         self.refresh()
 
     def save_image(self, path):
@@ -124,7 +147,7 @@ class FreeHandView(QGraphicsView):
                 self.mask[rr,cc] = 0.5
             elif self.mode == 'eraser':
                 self.mask[rr,cc] = 0    
-        self.refresh()
+            self.refresh()
 
 
     def mousePressEvent(self, event):
@@ -144,6 +167,7 @@ class FreeHandView(QGraphicsView):
                     self.mask[rr,cc] = 0.5
                 elif self.mode == 'eraser':
                     self.mask[rr,cc] = 0
+                self.refresh()
 
         elif event.button() == 4:
             options = QFileDialog.Options()
@@ -180,13 +204,14 @@ class FreeHandView(QGraphicsView):
         self.repaint()
 
     def set_image(self, img):
+        
         self.image = img.copy()
-        red = np.zeros_like(img)
-        red[..., 0] = 255
+        color = np.zeros_like(self.image)
+        color[..., 0] = 255
         if self.mask is None:
             self.mask = np.zeros((self.image.shape[0], self.image.shape[1]))[..., None]
     
-        _img = self.image * (1-self.mask) + red * self.mask
+        _img = self.image * (1-self.mask) + color * self.mask
         oImage = toQImage(_img)
         sImage = oImage.scaled(QSize(self.image_size, self.image_size))
         self.pixmap_image = QPixmap.fromImage(sImage)

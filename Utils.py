@@ -17,7 +17,7 @@ def toQImage(im, copy=False):
         return QImage()
 
     im = np.ascontiguousarray(im, dtype=np.uint8)
-    assert im.shape[2] <= 4, 'Weird image shape detected : {}'.format(im.shape)
+    # assert im.shape[2] <= 4, 'Weird image shape detected : {}'.format(im.shape)
     
     if len(im.shape) == 2:
         qim = QImage(im.data, im.shape[1], im.shape[0],

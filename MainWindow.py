@@ -15,11 +15,25 @@ class MainWindow(QWidget):
         super().__init__(parent)
         self.fs = Ui_Dialog()
         self.fs.setupUi(self)
+        self.fs.eraseButton.clicked.connect(lambda: self.fs.MainView.view.set_mode('eraser'))
+        self.fs.paintButton.clicked.connect(lambda: self.fs.MainView.view.set_mode('paint'))
+        self.fs.erasep.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('erase', 10))
+        self.fs.erasem.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('erase', -10))
+        self.fs.paintp.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('paint', 10))
+        self.fs.paintm.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('paint', -10))
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     mw = MainWindow()
-    mw.fs.MainView.view.set_image(cv2.imread('data/img.jpg')[..., ::-1])
+    img = cv2.imread('data/img.jpg')[..., ::-1]
+    height, width, _ = img.shape
+    size = min(height, width)
+    img = img[:size, :size]
+    from skimage.transform import resize
+    size = mw.fs.MainView.view.image_size
+    img = resize(img, (size, size), preserve_range=True)
+    mw.fs.MainView.view.set_image(img)
 
     mw.show()
     sys.exit(app.exec_())
