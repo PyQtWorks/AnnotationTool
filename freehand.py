@@ -27,7 +27,6 @@ width, height = 500, 500
 
 
 class FreeHandSlot(QWidget):
-    gw = None
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout()
@@ -79,10 +78,7 @@ class FreeHandView(QGraphicsView):
     '''
     Slot that contains the actual image
     '''
-    # hide_picker_signal = pyqtSignal()
-    # mode_signal = pyyqtSignal(str, str)
-    # reset_signal = pyqtSignal()
-
+    gw = None
     def __init__(self, slot, parent=None):
         super().__init__(parent)
         self.mode = 'paint'
@@ -91,7 +87,6 @@ class FreeHandView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.image_size = width
-
         self.mask = None
         self.image = None
         assert self.dragMode() == QGraphicsView.NoDrag
@@ -103,6 +98,12 @@ class FreeHandView(QGraphicsView):
         self.isLocalEditted = False
         self.paint_bs = 20
         self.erase_bs = 20
+        self.scale = 1.0
+    
+    def zoom(self, scale_delta):
+        self.scale += scale_delta
+        self.scale = min(max(self.scale, 1), 2)
+        self.set_image()
 
     @property
     def brushSize(self):
@@ -137,7 +138,6 @@ class FreeHandView(QGraphicsView):
     def mouseMoveEvent(self, event):
         if self.isMousePressed is True:
             x, y = event.x(), event.y()
-            
             rr, cc = Draw.circle(
                 y * self.image.shape[0] // self.image_size, x * self.image.shape[1] // self.image_size, self.brushSize, self.mask.shape)
             if self.mask is None:
@@ -200,22 +200,31 @@ class FreeHandView(QGraphicsView):
         self.refresh()
 
     def refresh(self):
-        self.set_image(self.image)
+        self.set_image()
         self.repaint()
 
-    def set_image(self, img):
-        
-        self.image = img.copy()
+    def set_image(self, img=None): 
+        if img is not None:
+            self.image = img.copy()
+            self.center = np.array([img.shape[0]/2, img.shape[1]/2], np.uint8)
         color = np.zeros_like(self.image)
         color[..., 0] = 255
         if self.mask is None:
             self.mask = np.zeros((self.image.shape[0], self.image.shape[1]))[..., None]
     
         _img = self.image * (1-self.mask) + color * self.mask
+        if self.gw is not None:
+            size = 300
+            oImage = toQImage(_img)
+            self.gw.setPixmap(QPixmap.fromImage(oImage.scaled(QSize(size, size))))
+
+        self.bound = int(self.image_size / self.scale / 2)
+        self.center[0] = max(min(self.center[0], self.image_size - bound), bound)
+        self.center[1] = max(min(self.center[1], self.image_size - bound), bound)
+        _img = _img[self.center[0] - bound: self.center[0] + bound, self.center[1] - bound: self.center[1] + bound]
         oImage = toQImage(_img)
         sImage = oImage.scaled(QSize(self.image_size, self.image_size))
         self.pixmap_image = QPixmap.fromImage(sImage)
-        # self.setPixmap(self.pixmap_image)
         if not hasattr(self, 'item'):
             self.item = QGraphicsPixmapItem(self.pixmap_image)
             self.item.setOffset(-self.image_size, -self.image_size)

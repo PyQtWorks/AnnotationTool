@@ -21,6 +21,8 @@ class MainWindow(QWidget):
         self.fs.erasem.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('erase', -10))
         self.fs.paintp.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('paint', 10))
         self.fs.paintm.clicked.connect(lambda: self.fs.MainView.view.change_brush_size('paint', -10))
+        self.fs.zoomIn.clicked.connect(lambda: self.fs.MainView.view.zoom(0.2))
+        self.fs.zoomOut.clicked.connect(lambda: self.fs.MainView.view.zoom(-0.2))
 
 
 if __name__ == '__main__':
