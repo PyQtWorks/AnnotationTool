@@ -22,6 +22,7 @@ from freehandTool.pointerEvent import PointerEvent
 from freehandTool.segmentString.segmentString import SegmentString
 from Utils import toQImage
 from PyQt5.QtWidgets import QColorDialog
+import cv2
 
 width, height = 500, 500
 
@@ -100,6 +101,7 @@ class FreeHandView(QGraphicsView):
         self.paint_bs = 20
         self.erase_bs = 20
         self.scale = 1.0
+        self.speed = np.array([0, 0, 0, 0], dtype=np.uint8)
     
     def zoom(self, scale_delta):
         self.scale += scale_delta
@@ -137,8 +139,26 @@ class FreeHandView(QGraphicsView):
         skimage.io.imsave(path, self.image.astype(np.uint8))
 
     def mouseMoveEvent(self, event):
+        should_refresh = False
+        x, y = event.x(), event.y()
+
+        if y < 0.1:
+            should_refresh = True
+            self.speed[0] = 5
+        elif y > 0.9:
+            should_refresh = True
+            self.speed[2] = 5
+        elif x < 0.1:
+            should_refresh = True
+            self.speed[1] = 5
+        elif x > 0.9:
+            should_refresh = True
+            self.speed[3] = 5
+        else:
+            self.speed[:] = 0
+
         if self.isMousePressed is True:
-            x, y = event.x(), event.y()
+            should_refresh = True
             brushSize = self.brushSize / self.scale
             rr, cc = Draw.circle(
                 y * self.side // self.image_size + self.y0, x * self.side // self.image_size + self.x0, brushSize, self.mask.shape)
@@ -148,9 +168,10 @@ class FreeHandView(QGraphicsView):
             if self.mode == 'paint':
                 self.mask[rr,cc] = 0.5
             elif self.mode == 'eraser':
-                self.mask[rr,cc] = 0    
+                self.mask[rr,cc] = 0
+            
+        if should_refresh:
             self.refresh()
-
 
     def mousePressEvent(self, event):
         '''
@@ -199,10 +220,11 @@ class FreeHandView(QGraphicsView):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.isMousePressed = False
-
         self.refresh()
 
     def refresh(self):
+        self._center[0] += self.speed[0] - self.speed[2] 
+        self._center[1] += self.speed[1] - self.speed[3] 
         self.set_image()
         self.repaint()
     
@@ -249,9 +271,11 @@ class FreeHandView(QGraphicsView):
         _img = self.image * (1-self.mask) + color * self.mask
         if self.gw is not None:
             size = 300
-            oImage = toQImage(_img)
-            self.gw.setPixmap(QPixmap.fromImage(oImage.scaled(QSize(size, size))))
-
+            gw_img = _img.copy()
+            cv2.rectangle(gw_img, (self.x0, self.y0), (self.x1, self.y1), [255, 0, 255], 5)
+            oImage = toQImage(gw_img)
+            self.gw.pixmap_image = QPixmap.fromImage(oImage.scaled(QSize(size, size)))
+            self.gw.setPixmap(self.gw.pixmap_image)
 
         _img = _img[self.y0: self.y1, self.x0: self.x1]
         oImage = toQImage(_img)
