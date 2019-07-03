@@ -79,6 +79,7 @@ class FreeHandView(QGraphicsView):
     Slot that contains the actual image
     '''
     gw = None
+    _center = None
     def __init__(self, slot, parent=None):
         super().__init__(parent)
         self.mode = 'paint'
@@ -104,6 +105,7 @@ class FreeHandView(QGraphicsView):
         self.scale += scale_delta
         self.scale = min(max(self.scale, 1), 2)
         self.set_image()
+        self.slot.update_cursor()
 
     @property
     def brushSize(self):
@@ -123,7 +125,6 @@ class FreeHandView(QGraphicsView):
         self.reset_signal.emit()
         log.debug('Reset FHS')
 
-
     def set_mode(self, mode):
         log.info(f'Selecting Mode : {mode}')
         # self.mode_signal.emit(self.mode, mode)
@@ -138,8 +139,9 @@ class FreeHandView(QGraphicsView):
     def mouseMoveEvent(self, event):
         if self.isMousePressed is True:
             x, y = event.x(), event.y()
+            brushSize = self.brushSize / self.scale
             rr, cc = Draw.circle(
-                y * self.image.shape[0] // self.image_size, x * self.image.shape[1] // self.image_size, self.brushSize, self.mask.shape)
+                y * self.side // self.image_size + self.y0, x * self.side // self.image_size + self.x0, brushSize, self.mask.shape)
             if self.mask is None:
                 print('Moving but mask is None')
                 return
@@ -161,8 +163,9 @@ class FreeHandView(QGraphicsView):
             if self.mode in self.paint_related_operations:
                 if self.mask is None: 
                     self.mask = np.zeros(*self.image.shape[:2])
+                brushSize = self.brushSize / self.scale
                 rr, cc = Draw.circle(
-                    y * self.image.shape[0] // self.image_size, x * self.image.shape[1] // self.image_size, self.brushSize, self.mask.shape)
+                    y * self.side // self.image_size + self.y0, x * self.side // self.image_size + self.x0, brushSize, self.mask.shape)
                 if self.mode == 'paint':
                     self.mask[rr,cc] = 0.5
                 elif self.mode == 'eraser':
@@ -202,11 +205,42 @@ class FreeHandView(QGraphicsView):
     def refresh(self):
         self.set_image()
         self.repaint()
+    
+    @property
+    def bound(self):
+        return int(self.image_size / self.scale / 2)
+
+    @property
+    def side(self):
+        return self.bound*2
+
+    @property
+    def center(self):
+        self._center[0] = max(min(self._center[0], self.image_size - self.bound), self.bound)
+        self._center[1] = max(min(self._center[1], self.image_size - self.bound), self.bound)
+        return self._center
+    
+    @property
+    def y0(self):
+        return self.center[0] - self.bound
+
+    @property
+    def x0(self):
+        return self.center[1] - self.bound
+
+    @property
+    def y1(self):
+        return self.y0 + self.side
+
+    @property
+    def x1(self):
+        return self.x0 + self.side
+
 
     def set_image(self, img=None): 
         if img is not None:
             self.image = img.copy()
-            self.center = np.array([img.shape[0]/2, img.shape[1]/2], np.uint8)
+            self._center = np.array([img.shape[0]/2, img.shape[1]/2], np.uint8)
         color = np.zeros_like(self.image)
         color[..., 0] = 255
         if self.mask is None:
@@ -218,10 +252,8 @@ class FreeHandView(QGraphicsView):
             oImage = toQImage(_img)
             self.gw.setPixmap(QPixmap.fromImage(oImage.scaled(QSize(size, size))))
 
-        self.bound = int(self.image_size / self.scale / 2)
-        self.center[0] = max(min(self.center[0], self.image_size - bound), bound)
-        self.center[1] = max(min(self.center[1], self.image_size - bound), bound)
-        _img = _img[self.center[0] - bound: self.center[0] + bound, self.center[1] - bound: self.center[1] + bound]
+
+        _img = _img[self.y0: self.y1, self.x0: self.x1]
         oImage = toQImage(_img)
         sImage = oImage.scaled(QSize(self.image_size, self.image_size))
         self.pixmap_image = QPixmap.fromImage(sImage)
