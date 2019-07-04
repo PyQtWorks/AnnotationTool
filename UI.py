@@ -45,7 +45,6 @@ class Ui_Dialog(object):
         self.graphicsView.setMinimumSize(QtCore.QSize(0, 256))
         self.graphicsView.setMaximumSize(QtCore.QSize(512, 512))
         self.graphicsView.setObjectName("graphicsView")
-        self.graphicsView.first_time = True
         self.gridLayout.addWidget(self.graphicsView, 7, 0, 1, 4)
         self.zoomOut = QtWidgets.QPushButton(self.horizontalLayoutWidget)
         self.zoomOut.setObjectName("zoomOut")
@@ -71,6 +70,7 @@ class Ui_Dialog(object):
         self.verticalLayout_2.addLayout(self.gridLayout)
         self.horizontalLayout.addLayout(self.verticalLayout_2)
         self.MainView.view.gw = self.graphicsView
+        self.MainView.view.setup_gw()
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 

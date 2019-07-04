@@ -101,11 +101,31 @@ class FreeHandView(QGraphicsView):
         self.paint_bs = 20
         self.erase_bs = 20
         self.scale = 1.0
-        self.speed = np.array([0, 0, 0, 0], dtype=np.uint8)
+        self.speed = np.array([0, 0, 0, 0], dtype=np.int)
+    
+    def setup_gw(self):
+        def on_click(event):
+            x, y = event.x(), event.y()
+            self.gw.clicked = True
+            self._center[0] = y/300*self.image_size
+            self._center[1] = x/300*self.image_size
+            self.refresh()
+        def on_move(event):
+            if self.gw.clicked:
+                x, y = event.x(), event.y()
+                self._center[0] = y/300*self.image_size
+                self._center[1] = x/300*self.image_size
+                self.refresh()
+        def on_released(event):
+            self.gw.clicked=False
+        self.gw.mousePressEvent = on_click
+        self.gw.mouseMoveEvent = on_move
+        self.gw.mouseReleaseEvent = on_released
+        return
     
     def zoom(self, scale_delta):
         self.scale += scale_delta
-        self.scale = min(max(self.scale, 1), 2)
+        self.scale = min(max(self.scale, 1), 4)
         self.set_image()
         self.slot.update_cursor()
 
@@ -117,7 +137,8 @@ class FreeHandView(QGraphicsView):
         
     def change_brush_size(self, name, value):
         bs = getattr(self, f'{name}_bs')
-        setattr(self, f'{name}_bs', bs + value)
+        bs = max(min(bs+value, 100), 10)
+        setattr(self, f'{name}_bs', bs)
         self.slot.update_cursor()
 
     def reset(self):
@@ -142,20 +163,20 @@ class FreeHandView(QGraphicsView):
         should_refresh = False
         x, y = event.x(), event.y()
 
-        if y < 0.1:
-            should_refresh = True
-            self.speed[0] = 5
-        elif y > 0.9:
-            should_refresh = True
-            self.speed[2] = 5
-        elif x < 0.1:
-            should_refresh = True
-            self.speed[1] = 5
-        elif x > 0.9:
-            should_refresh = True
-            self.speed[3] = 5
-        else:
-            self.speed[:] = 0
+        # if y > 0.9 * self.side:
+        #     should_refresh = True
+        #     self.speed[0] = 5
+        # elif y < 0.1 * self.side:
+        #     should_refresh = True
+        #     self.speed[2] = 5
+        # elif x > 0.9 * self.side:
+        #     should_refresh = True
+        #     self.speed[1] = 5
+        # elif x < 0.1 * self.side:
+        #     should_refresh = True
+        #     self.speed[3] = 5
+        # else:
+        #     self.speed[:] = 0
 
         if self.isMousePressed is True:
             should_refresh = True
@@ -223,8 +244,8 @@ class FreeHandView(QGraphicsView):
         self.refresh()
 
     def refresh(self):
-        self._center[0] += self.speed[0] - self.speed[2] 
-        self._center[1] += self.speed[1] - self.speed[3] 
+        self._center[0] += int(self.speed[0] - self.speed[2]) 
+        self._center[1] += int(self.speed[1] - self.speed[3]) 
         self.set_image()
         self.repaint()
     
@@ -262,7 +283,7 @@ class FreeHandView(QGraphicsView):
     def set_image(self, img=None): 
         if img is not None:
             self.image = img.copy()
-            self._center = np.array([img.shape[0]/2, img.shape[1]/2], np.uint8)
+            self._center = np.array([img.shape[0]/2, img.shape[1]/2], dtype=np.int)
         color = np.zeros_like(self.image)
         color[..., 0] = 255
         if self.mask is None:
