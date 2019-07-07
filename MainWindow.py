@@ -28,7 +28,7 @@ class MainWindow(QWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     mw = MainWindow()
-    img = cv2.imread('data/img.jpg')[..., ::-1]
+    img = cv2.imread('data/img7.jpg')[..., ::-1]
     height, width, _ = img.shape
     size = min(height, width)
     img = img[:size, :size]
@@ -36,7 +36,6 @@ if __name__ == '__main__':
     size = mw.fs.MainView.view.image_size
     img = resize(img, (size, size), preserve_range=True)
     mw.fs.MainView.view.set_image(img)
-
     mw.show()
     sys.exit(app.exec_())
 

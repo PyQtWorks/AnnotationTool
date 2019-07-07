@@ -65,6 +65,7 @@ class Ui_Dialog(object):
         self.paintButton.setObjectName("paintButton")
         self.gridLayout.addWidget(self.paintButton, 3, 0, 1, 2)
         self.pushButton_5 = QtWidgets.QPushButton(self.horizontalLayoutWidget)
+        self.pushButton_5.setEnabled(False)
         self.pushButton_5.setObjectName("pushButton_5")
         self.gridLayout.addWidget(self.pushButton_5, 2, 0, 1, 4)
         self.verticalLayout_2.addLayout(self.gridLayout)
